@@ -1,24 +1,30 @@
 local lg = love.graphics
 local floor, min, max, random = math.floor, math.min, math.max, love.math.random
-local mainMenu = Game.GUI:new()
+local mainMenu = Game.GUI:new():setZ(1)
 
-mainMenu:add("box", "background"):addImage(Game.bg, "background", true):setData({x = 0, y = 0, z = 0, w = 800, h = 600, clickable = false})
-mainMenu:add("box", "start"):setData({x = 270, y = 85, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
-mainMenu:add("text", "startgame"):setData({x = 290, y = 105, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Start Game", clickable = false, font = Game.fonts.large})
-mainMenu:add("box", "settings"):setData({x = 270, y = 205, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
-mainMenu:add("text", "settingsText"):setData({x = 290, y = 225, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Settings", clickable = false, font = Game.fonts.large})
-mainMenu:add("box", "help"):setData({x = 270, y = 325, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
-mainMenu:add("text", "gamehelp"):setData({x = 290, y = 345, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Help Menu", clickable = false, font = Game.fonts.large})
-mainMenu:add("box", "quit"):setData({x = 270, y = 445, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
-mainMenu:add("text", "quitgame"):setData({x = 290, y = 465, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Quit Game", clickable = false, font = Game.fonts.large})
-mainMenu:add("text", "soundCredit"):setData({ x = 10, y = 570, z = 4, w = 790, color = {1,1,1,1}, shadow = true, text = "Music made by https://www.bensound.com", font = Game.fonts.small, clickable = false})
+mainMenu:add("box", "start"):setData({x = 275, y = 85, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
+mainMenu:add("text", "startgame"):setData({x = 295, y = 105, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Start Game", clickable = false, font = Game.fonts.large})
+mainMenu:add("box", "settings"):setData({x = 275, y = 205, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
+mainMenu:add("text", "settingsText"):setData({x = 295, y = 225, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Settings", clickable = false, font = Game.fonts.large})
+mainMenu:add("box", "help"):setData({x = 275, y = 325, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
+mainMenu:add("text", "gamehelp"):setData({x = 295, y = 345, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Help Menu", clickable = false, font = Game.fonts.large})
+mainMenu:add("box", "quit"):setData({x = 275, y = 445, z = 1, w = 260, h = 80, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
+mainMenu:add("text", "quitgame"):setData({x = 295, y = 465, z = 2, w = 215, color = {0,.9,.9,.5}, text = "Quit Game", clickable = false, font = Game.fonts.large})
 
 mainMenu:child("start"):registerEvent("onClick", function(self)
 	mainMenu:disable()
+	for _,v in ipairs(Game.background:children("box")) do
+		if v.name:match("Balloon") then
+			Game.background:child(v.name):disable()
+		end
+	end
+	Game.credits:disable(false)
 	Game.paused = false
 	Game.score = 0
 	Game.timePassed = 2
-	Game.runTime = Game.length
+	Game.timeLeft = Game.length
+	Game.runTime = 0
+	Game.balloonCount = 1
 	Game.inGame:enable()
 	Game:setProblem()
 	for k,v in ipairs(Game.balloonObjects) do
@@ -29,22 +35,18 @@ end)
 
 mainMenu:child("settings"):registerEvent("onClick", function(self)
 	Game.settingsMenu:enable()
-	Game.settingsMenu:child("background"):setImage(mainMenu:child("background"):getImage())
 	mainMenu:disable()
+	Game.credits:disable(false)
 end)
 
 mainMenu:child("help"):registerEvent("onClick", function(self)
 	Game.helpMenu:enable()
-	Game.helpMenu:child("background"):setImage(mainMenu:child("background"):getImage())
 	mainMenu:disable()
+	Game.credits:disable(false)
 end)
 
 mainMenu:child("quit"):registerEvent("onClick", function(self)
 	love.event.quit()
-end)
-
-mainMenu:child("background"):registerEvent("onAnimationComplete", function(self)
-	Game:animateBG()
 end)
 
 mainMenu:registerGlobalEvent("onHoverEnter", "box", function(self)

@@ -1,14 +1,13 @@
 local lg = love.graphics
 local floor, min, max, random = math.floor, math.min, math.max, love.math.random
-local settingsMenu = Game.GUI:new()
+local settingsMenu = Game.GUI:new():setZ(1)
 local textToImage = {red=1,blue=2,green=3,yellow=4,pink=5,purple=6}
 
-settingsMenu:add("box", "background"):addImage(Game.bg, "background", true):setData({x = 0, y = 0, z = 0, w = 800, h = 600, clickable = false})
-settingsMenu:add("box", "settingsBG"):setData({x = 220, y = 0, z = 1, w = 580, h = 600, clickable = false, color = {.5,.5,.5,.5}, useBorder = true, borderColor = {.3,.3,.3,1}})
-settingsMenu:add("checkbox", "colors"):setData({w = 10, h = 15, x = 260, y = 90, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.2}, label = "Enabled Colors", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 30, 1}, labelShadow = true, options = {"Red", "Blue", "Green", "Yellow", "Pink", "Purple"}, optionColor = {0,.8,.1,1}, default = "all", useBorder = true, borderColor = {.3,.2,.3,.7}, overlayColor = {.3,.5,.2,.7}, force = true})
-settingsMenu:add("checkbox", "length"):setData({w = 10, h = 15, x = 260, y = 230, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.2}, label = "Round Length", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 170, 1}, labelShadow = true, options = {"1min", "2min", "3min", "4min", "5min"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "5min", useBorder = true, borderColor = {.3,.2,.3,.7}, overlayColor = {.3,.5,.2,.7}, force = true})
-settingsMenu:add("checkbox", "speed"):setData({w = 10, h = 15, x = 260, y = 370, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.2}, label = "Balloon Speed", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 310, 1}, labelShadow = true, options = {"Slow", "Normal", "Double", "Triple"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "Normal", useBorder = true, borderColor = {.3,.2,.3,.7}, overlayColor = {.3,.5,.2,.7}, force = true})
-settingsMenu:add("checkbox", "difficulty"):setData({w = 10, h = 15, x = 260, y = 510, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.2}, label = "Difficulty", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 450, 1}, labelShadow = true, options = {"Easy", "Medium", "Hard"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "Easy", useBorder = true, borderColor = {.3,.2,.3,.7}, overlayColor = {.3,.5,.2,.7}, force = true})
+settingsMenu:add("box", "settingsBG"):setData({x = 220, y = 0, z = 0, w = 580, h = 600, clickable = false, color = {.2,.2,.2,.7}, useBorder = true, borderColor = {.3,.3,.3,1}})
+settingsMenu:add("checkbox", "colors"):setData({w = 10, h = 15, x = 260, y = 90, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.4}, label = "Enabled Colors", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 30, 1}, labelShadow = true, options = {"Red", "Blue", "Green", "Yellow", "Pink", "Purple"}, optionColor = {0,.8,.1,1}, default = "all", useBorder = true, borderColor = {.9,.9,.9,.4}, overlayColor = {.1,.8,.1,.7}, force = true, selectedBorder = {0,0,0,.6}})
+settingsMenu:add("checkbox", "length"):setData({w = 10, h = 15, x = 260, y = 230, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.4}, label = "Round Length", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 170, 1}, labelShadow = true, options = {"1min", "2min", "3min", "4min", "5min"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "5min", useBorder = true, borderColor = {.9,.9,.9,.4}, overlayColor = {.1,.8,.1,.7}, force = true, selectedBorder = {0,0,0,.6}})
+settingsMenu:add("checkbox", "speed"):setData({w = 10, h = 15, x = 260, y = 370, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.4}, label = "Balloon Speed", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 310, 1}, labelShadow = true, options = {"Slow", "Normal", "Double", "Triple"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "Normal", useBorder = true, borderColor = {.9,.9,.9,.4}, overlayColor = {.1,.8,.1,.7}, force = true, selectedBorder = {0,0,0,.6}})
+settingsMenu:add("checkbox", "difficulty"):setData({w = 10, h = 15, x = 260, y = 510, z = 1, font = Game.fonts.small, padding = {10,10,10,10}, fixPadding = true, color = {.3,.2,.8,.4}, label = "Difficulty", labelColor = {.88,.88,.88,1}, labelFont = Game.fonts.large, labelPos = {260, 450, 1}, labelShadow = true, options = {"Easy", "Medium", "Hard", "Extreme"}, optionColor = {0,.8,.1,1}, singleSelection = true, default = "Easy", useBorder = true, borderColor = {.9,.9,.9,.4}, overlayColor = {.1,.8,.1,.7}, force = true, selectedBorder = {0,0,0,.6}})
 settingsMenu:add("box", "back"):setData({x = 40, y = 32, z = 1, w = 150, h = 50, color = {.5,.2,.7,.7}, useBorder = true, borderColor = {.4,.4,.4,.7}})
 settingsMenu:add("text", "backtext"):setData({x = 50, y = 44, z = 2, w = 130, color = {0,.9,.9,.5}, text = "Back", clickable = false, font = Game.fonts.medium})
 
@@ -17,8 +16,10 @@ settingsMenu:child("difficulty"):registerEvent("onOptionClick", function(self, o
 		Game.difficulty = 1
 	elseif option.text == "Medium" then
 		Game.difficulty = 2
-	else
+	elseif option.text == "Hard" then
 		Game.difficulty = 3
+	else
+		Game.difficulty = 4
 	end
 end)
 
@@ -65,8 +66,8 @@ end)
 
 settingsMenu:child("back"):registerEvent("onClick", function(self)
 	Game.mainMenu:enable()
-	settingsMenu:disable()
-	Game:animateBG()
+	Game.credits:enable()
+	settingsMenu:disable(false)
 end):registerEvent("onHoverEnter", function(self)
 	self:animateToOpacity(1):animateBorderToOpacity(1)
 	settingsMenu:child("backtext"):animateToColor({1,1,1,1})

@@ -26,13 +26,6 @@
 
 
 
-local box = require("neon.box")
-local checkbox = require("neon.checkbox")
-local dropdown = require("neon.dropdown")
-local text = require("neon.text")
-local textfield = require("neon.textfield")
-local radial = require("neon.radial")
-local slider = require("neon.slider")
 local lg, lt = love.graphics, love.timer
 local min, max = math.min, math.max
 
@@ -48,13 +41,13 @@ local colors = {
 	purple = {1,0,1,1}
 }
 gui.handles = {
-	box = box,
-	checkbox = checkbox,
-	dropdown = dropdown,
-	text = text,
-	textfield = textfield,
-	radial = radial,
-	slider = slider
+	box = require("neon.box"),
+	checkbox = require("neon.checkbox"),
+	dropdown = require("neon.dropdown"),
+	text = require("neon.text"),
+	textfield = require("neon.textfield"),
+	radial = require("neon.radial"),
+	slider = require("neon.slider")
 }
 gui.items = {}
 gui.z = 0
@@ -64,6 +57,7 @@ gui.enabled = true
 gui.allowUpdate = true
 gui.held = {}
 gui.images = {}
+gui.needToSort = false
 
 
 function gui.color(c)
@@ -245,7 +239,8 @@ function gui:add(t, n)
 	assert(n, "FAILURE: gui:addBox() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addBox() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = self.handles[t]:new(n, self)
+	self.items[id] = self.handles[t]:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -254,7 +249,8 @@ function gui:addBox(n)
 	assert(n, "FAILURE: gui:addBox() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addBox() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = box:new(n, self)
+	self.items[id] = self.handles.box:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -263,7 +259,8 @@ function gui:addCheckbox(n)
 	assert(n, "FAILURE: gui:addCheckbox() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addCheckbox() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = checkbox:new(n, self)
+	self.items[id] = self.handles.checkbox:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -272,7 +269,8 @@ function gui:addDropdown(n)
 	assert(n, "FAILURE: gui:addDropdown() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addDropdown() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = dropdown:new(n, self)
+	self.items[id] = self.handles.dropdown:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -281,7 +279,8 @@ function gui:addTextfield(n)
 	assert(n, "FAILURE: gui:addTextfield() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addTextfield() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = textfield:new(n, self)
+	self.items[id] = self.handles.textfield:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -290,7 +289,8 @@ function gui:addRadial(n)
 	assert(n, "FAILURE: gui:addRadial() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addRadial() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = radial:new(n, self)
+	self.items[id] = self.handles.radial:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -299,7 +299,8 @@ function gui:addText(n)
 	assert(n, "FAILURE: gui:addText() :: Missing param[name]")
 	assert(type(n) == "string", "FAILURE: gui:addText() :: Incorrect param[name] - expecting string and got " .. type(n))
 	local id = #self.items + 1
-	self.items[id] = text:new(n, self)
+	self.items[id] = self.handles.text:new(n, id, self)
+	self.needToSort = true
 	return self.items[id]
 end
 
@@ -370,6 +371,23 @@ function gui:update(dt)
 						local atProperBorderOpacity = true
 						local imagesMatch = true
 						
+						if i.runAnimations then
+							local animEvent = {color = i.animateColor, borderColor = i.animateBorderColor, opacity = i.animateOpacity, borderOpacity = i.animateBorderOpacity, position = i.animatePosition, image = i.animateImage}
+							if i.events.onAnimationStart then
+								for _,v in ipairs(i.events.onAnimationStart) do
+									v.fn(i, v.target, animEvent)
+								end
+							end
+							if events.onAnimationStart then
+								for _,v in ipairs(events.onAnimationStart) do
+									if v.o == i.type then
+										v.fn(i, v.target, animEvent)
+									end
+								end
+							end
+							i.runAnimations = false
+						end
+						
 						if i.animateColor then
 							for k,v in ipairs(i.colorToAnimateTo) do
 								if i.color[k] ~= v then
@@ -396,10 +414,33 @@ function gui:update(dt)
 							i.positionAnimateTime = i.positionAnimateTime + dt
 							local t = min(i.positionAnimateTime * (i.positionAnimateSpeed / 10), 1.0)
 							if i.pos.x ~= i.positionToAnimateTo.x or i.pos.y ~= i.positionToAnimateTo.y then
-								i.pos.x = i.lerp(i.positionToAnimateFrom.x, i.positionToAnimateTo.x, t)
-								i.pos.y = i.lerp(i.positionToAnimateFrom.y, i.positionToAnimateTo.y, t)
+								--if i.bouncePositionAnimation then
+								--	i.pos.x = i.lerp(i.positionToAnimateFrom.x, 0, i.positionToAnimateTo.x, 0, t)
+								--	i.pos.y = i.lerp(i.positionToAnimateFrom.y, 20, i.positionToAnimateTo.y, 20, t)
+								--else
+									i.pos.x = i.lerp(i.positionToAnimateFrom.x, i.positionToAnimateTo.x, t)
+									i.pos.y = i.lerp(i.positionToAnimateFrom.y, i.positionToAnimateTo.y, t)
+								--end
 								inProperPosition = false
 							end
+							--[[
+							if i.pos.z ~= i.positionToAnimateTo.z then
+								i.pos.z = i.lerp(i.positionToAnimateFrom.z, i.positionToAnimateTo.z, t)
+								self.needToSort = true
+							end
+							--]]
+							if i.positionToAnimateTo.x > i.pos.x then
+								i.positionAnimationPercentX = i.positionToAnimateTo.x / i.pos.x
+							else
+								i.positionAnimationPercentX =  i.pos.x / i.positionToAnimateTo.x
+							end
+							if i.positionToAnimateTo.y > i.pos.y then
+								i.positionAnimationPercentY = i.positionToAnimateTo.y / i.pos.y
+							else
+								i.positionAnimationPercentY = i.pos.y / i.positionToAnimateTo.y
+							end
+							
+							i.positionAnimationPercent = i.positionAnimationPercentX * i.positionAnimationPercentY
 						end
 						
 						if i.animateOpacity then
@@ -415,26 +456,26 @@ function gui:update(dt)
 									if i.color[4] == 1 then
 										if i.events.afterFadeIn then 
 											for _,v in ipairs(i.events.afterFadeIn) do
-												v.fn(i, v.target, event)
+												v.fn(i, v.target)
 											end
 										end
 										if events.afterFadeIn then
 											for _,v in ipairs(events.afterFadeIn) do
 												if v.o == i.type then
-													v.fn(i, v.target, event)
+													v.fn(i, v.target)
 												end
 											end
 										end
 									elseif i.color[4] == 0 then
 										if i.events.afterFadeOut then 
 											for _,v in ipairs(i.events.afterFadeOut) do
-												v.fn(i, v.target, event)
+												v.fn(i, v.target)
 											end
 										end
 										if events.afterFadeOut then
 											for _,v in ipairs(events.afterFadeOut) do
 												if v.o == i.type then
-													v.fn(i, v.target, event)
+													v.fn(i, v.target)
 												end
 											end
 										end
@@ -470,26 +511,26 @@ function gui:update(dt)
 									if i.borderColor[4] == 1 then
 										if i.events.afterFadeIn then 
 											for _,v in ipairs(i.events.afterFadeIn) do
-												v.fn(i, v.target, event)
+												v.fn(i, v.target)
 											end
 										end
 										if events.afterFadeIn then
 											for _,v in ipairs(events.afterFadeIn) do
 												if v.o == i.type then
-													v.fn(i, v.target, event)
+													v.fn(i, v.target)
 												end
 											end
 										end
 									elseif i.borderColor[4] == 0 then
 										if i.events.afterFadeOut then 
 											for _,v in ipairs(i.events.afterFadeOut) do
-												v.fn(i, v.target, event)
+												v.fn(i, v.target)
 											end
 										end
 										if events.afterFadeOut then
 											for _,v in ipairs(events.afterFadeOut) do
 												if v.o == i.type then
-													v.fn(i, v.target, event)
+													v.fn(i, v.target)
 												end
 											end
 										end
@@ -499,7 +540,7 @@ function gui:update(dt)
 							end
 						end
 						
-						if allColorsMatch and inProperPosition and atProperOpacity and allBorderColorsMatch and atProperBorderOpacity and imagesMatch then
+						if i.inAnimation and allColorsMatch and inProperPosition and atProperOpacity and allBorderColorsMatch and atProperBorderOpacity and imagesMatch then
 							i.inAnimation = false
 							i.animateColor = false
 							i.animatePosition = false
@@ -510,19 +551,110 @@ function gui:update(dt)
 							i.animateImage = false
 							if i.events.onAnimationComplete then
 								for _,v in ipairs(i.events.onAnimationComplete) do
-									v.fn(i, v.target, event)
+									v.fn(i, v.target)
 								end
 							end
 							if events.onAnimationComplete then
 								for _,v in ipairs(events.onAnimationComplete) do
 									if v.o == i.type then
-										v.fn(i, v.target, event)
+										v.fn(i, v.target)
 									end
 								end
 							end
 						end
 					end
-					i:update(dt)
+					if i.type == "box" then
+					
+					end
+					if i.type == "checkbox" then
+					
+					end
+					if i.type == "dropdown" then
+						if i.open then
+							local x,y = love.mouse.getPosition()
+							for k,v in ipairs(i.options) do
+								if x >= v.x - i.optionPaddingLeft / 2 and x <= v.x + v.w + i.optionPaddingLeft and y >= v.y - i.optionPaddingTop - i.optionPaddingBottom and y <= v.y + v.h - i.optionPaddingTop - i.optionPaddingBottom then
+									if not v.hovered then v.hovered = true end
+								else
+									if v.hovered then v.hovered = false end
+								end
+							end
+						end
+					end
+					if i.type == "text" then
+						if i.typewriter then
+							i.typewriterWaited = i.typewriterWaited + dt
+							if i.fancy then
+								for k,v in ipairs(i.typewriterText) do
+									if not v.finished then
+										if v.text then
+											if v.delay > 0 and v.delayWaited < v.delay then
+												v.delayWaited = v.delayWaited + dt
+												if v.delayWaited >= v.delay then
+													v.needToWait = false
+												end
+											end
+											if not v.needToWait then
+												v.timeWaited = v.timeWaited + dt
+												if not v.started then
+													v.started = true
+												end
+												while v.timeWaited >= v.time and v.textPos <= #v.text do
+													v.timeWaited = v.timeWaited - v.time
+													v.textPos = v.textPos + 1
+													if not v.toShow then v.toShow = "" end
+													if not v.text[v.textPos] then v.text[v.textPos] = 0 end
+													v.toShow = v.toShow .. v.text[v.textPos]
+												end
+												if v.textPos >= #v.text then
+													v.finished = true
+												end
+											end
+										end
+										if not v.finished then break end
+										if k == #i.typewriterText then
+											if i.events.onTypewriterFinish then
+												for _,e in ipairs(i.events.onTypewriterFinish) do
+													e.fn(i, e.target)
+												end
+											end
+											if i.typewriterRepeat then
+												for _,e in ipairs(i.typewriterText) do
+													v.timeWaited = 0
+													v.toShow = ""
+													v.finished = false
+													v.textPos = 1
+													if v.delayWaited ~= 0 then
+														v.needToWait = true
+													end
+												end
+											end
+										end
+									end
+								end
+							else
+								while i.typewriterWaited >= i.typewriterSpeed and i.typewriterPos <= #i.typewriterText do
+									i.typewriterWaited = i.typewriterWaited - i.typewriterSpeed
+									i.typewriterPrint = i.typewriterPrint .. i.typewriterText[i.typewriterPos]
+									i.typewriterPos = i.typewriterPos + 1
+								end
+								if i.typewriterPos >= #i.typewriterText and not i.typewriterFinished then
+									if not i.typewriterRepeat then i.typewriterFinished = true else i:typewriterCycle() end
+									i.typewriterRunCount = i.typewriterRunCount + 1
+								end
+							end
+						end
+					end
+					if i.type == "textfield" then
+						if i.active then
+							i.cursorTime = i.cursorTime + dt
+							if i.cursorTime >= 1 then
+								i.cursorTime = i.cursorTime - 1
+								i.showCursor = not i.showCursor
+							end
+						end
+					end
+					if i.update then i:update(dt) end
 				end
 			end 
 		end
@@ -537,21 +669,19 @@ end
 function gui:disable(kill)
 	if kill ~= nil then kill = kill else kill = true end
 	if kill then
-		for _,o in ipairs(items) do
-			for _,i in ipairs(o.items) do
-				i.hovered = false
-				i.active = false
-				i.clicked = false
-				i.held = false
-				i.fadedByFunc = false
-				i.inAnimation = false
-				i.animateColor = false
-				i.animatePosition = false
-				i.animateOpacity = false
-				i.animateBorderColor = false
-				i.animateBorderOpacity = false
-				i:setData(i.defaults)
-			end
+		for _,i in ipairs(self.items) do
+			i.hovered = false
+			i.active = false
+			i.clicked = false
+			i.held = false
+			i.fadedByFunc = false
+			i.inAnimation = false
+			i.animateColor = false
+			i.animatePosition = false
+			i.animateOpacity = false
+			i.animateBorderColor = false
+			i.animateBorderOpacity = false
+			i:setData(i.defaults)
 		end
 	end
 	self.enabled = false
@@ -573,11 +703,26 @@ function gui:drawAll()
 		end
 	end)
 	for _,v in ipairs(items) do
-		table.sort(v.items, function(a,b) 
+		v:draw()
+	end
+end
+
+function gui:draw()
+	if not self.enabled then return false end
+	if self.needToSort then
+		table.sort(self.items, function(a,b) 
 			if not a or not b then return false end
 			if a.pos.z == b.pos.z then
 				if a.id == b.id then
-					return false
+					if a.pos.x == b.pos.x then
+						if a.pos.y == b.pos.y then
+							return false
+						else
+							return a.pos.y > b.pos.y
+						end
+					else
+						return a.pos.x < b.pos.x
+					end
 				else
 					return a.id > b.id
 				end
@@ -585,28 +730,302 @@ function gui:drawAll()
 				return a.pos.z < b.pos.z
 			end
 		end)
-		for _,i in ipairs(self.items) do 
-			if not i.hidden then i:draw(dt) end
-		end
+		self.needToSort = false
 	end
-end
-
-function gui:draw()
-	if not self.enabled then return false end
-	table.sort(self.items, function(a,b) 
-		if not a or not b then return false end
-		if a.pos.z == b.pos.z then
-			if a.id == b.id then
-				return false
-			else
-				return a.id > b.id
-			end
-		else
-			return a.pos.z < b.pos.z
-		end
-	end)
 	for _,i in ipairs(self.items) do 
-		if not i.hidden then i:draw(dt) end
+		lg.push("all")
+		if not i.hidden then 
+			if i.type == "box" then
+				lg.setColor(1,1,1,1)
+				local x,y
+				if love.math.random(0,100) > 50 then
+					x = not i.noiseX and (i.pos.x) or i.pos.x + ((love.math.noise(i.pos.x)) * i.noiseStrength)
+					y = not i.noiseY and (i.pos.y) or i.pos.y + ((love.math.noise(i.pos.y)) * i.noiseStrength)
+				else
+					x = not i.noiseX and (i.pos.x) or i.pos.x - ((love.math.noise(i.pos.x)) * i.noiseStrength)
+					y = not i.noiseY and (i.pos.y) or i.pos.y - ((love.math.noise(i.pos.y)) * i.noiseStrength)
+				end
+				if i.border then
+					if i.parent and items[i.parent] and items[i.parent].use255 then
+						lg.setColor(love.math.colorFromBytes(i.borderColor))
+					else
+						lg.setColor(i.borderColor)
+					end
+					if i.round then
+						lg.setBlendMode("replace", "premultiplied")
+						lg.setColor({i.borderColor[1], i.borderColor[2], i.borderColor[3], i.borderColor[4]})
+						lg.rectangle("fill", x - 1, y - 1, (i.w - i.r[3]) + 2, (i.h - i.r[4]) + 2, i.r[1])
+						lg.rectangle("fill", x - 1, y - 1, (i.w - i.r[1]) + 2, (i.h - i.r[4]) + 2, i.r[2])
+						lg.rectangle("fill", (x + i.r[1]) - 1, (y + i.r[2]) - 1, (i.w - i.r[1]) + 2, (i.h - i.r[2]) + 2, i.r[3])
+						lg.rectangle("fill", x - 1, (y + i.r[2]) - 1, (i.w - i.r[1]) + 2, (i.h - i.r[2]) + 2, i.r[4])
+						lg.setBlendMode("alpha")
+					else
+						lg.rectangle("line", x - 1, y - 1, i.paddingLeft + i.w + i.paddingRight + 2, i.paddingTop + i.h + i.paddingBottom + 2)
+					end
+				end
+				if i.parent and items[i.parent] and items[i.parent].use255 then
+					lg.setColor(love.math.colorFromBytes(i.color))
+				else
+					lg.setColor(i.color)
+				end
+				if i.image then 
+					assert(type(i.image) == "userdata", "[" .. i.name .. "] FAILURE: box:draw(" .. i.name .. ") :: Incorrect param[image] - expecting image userdata and got " .. type(i.image))
+					if i.keepBackground then
+						if i.round then
+							lg.rectangle("fill", x, y, i.w, i.h, i.radius)
+						else
+							lg.rectangle("fill", x, y, i.w, i.h)
+						end
+					end
+					if i.animateImage then
+						lg.setBlendMode("alpha", "alphamultiply")
+						i.shaders.fadeIn:send('time', max(0, min(1, i.imageAnimateTime / i.imageAnimateSpeed)))
+						lg.setShader(i.shaders.fadeIn)
+						lg.draw(i.imageToAnimateTo, x + i.iX, y + i.iY, i.rot)
+						i.shaders.fadeOut:send('time', max(0, min(1, i.imageAnimateTime / i.imageAnimateSpeed)))
+						lg.setShader(i.shaders.fadeOut)
+						lg.draw(i.image, x + i.iX, y + i.iY, i.rot)
+						lg.setShader()
+						lg.setBlendMode("alpha")
+					else
+						lg.draw(i.image, x + i.iX, y + i.iY, i.rot)
+					end
+				else
+					if i.round then
+						lg.setBlendMode("replace", "premultiplied")
+						lg.setColor({i.color[1], i.color[2], i.color[3], i.color[4]})
+						lg.rectangle("fill", x, y, i.w - i.r[3], i.h - i.r[4], i.r[1])
+						lg.rectangle("fill", x, y, i.w - i.r[1], i.h - i.r[4], i.r[2])
+						lg.rectangle("fill", x + i.r[1], y + i.r[2], i.w - i.r[1], i.h - i.r[2], i.r[3])
+						lg.rectangle("fill", x, y + i.r[2], i.w - i.r[1], i.h - i.r[2], i.r[4])
+						lg.setBlendMode("alpha")
+					else
+						lg.rectangle("fill", x, y, i.w, i.h)
+					end
+				end
+			end
+			if i.type == "checkbox" then
+				lg.setColor(1,1,1,1)
+				lg.setFont(i.font)
+				for k,v in ipairs(i.options) do
+					if v.text then
+						lg.push()
+						if i.border then
+							if i.parent and items[i.parent] and items[i.parent].use255 then
+								lg.setColor(love.math.colorFromBytes(i.borderColor))
+								if v.selected then
+									lg.setColor(love.math.colorFromBytes(i.selectedBorder))
+								end
+							else
+								lg.setColor(i.borderColor)
+								if v.selected then
+									lg.setColor(i.selectedBorder)
+								end
+							end
+							if i.round then
+								lg.rectangle("line", v.x - 1, v.y - 1, v.w + 2, v.h + 2, i.roundRadius, i.roundRadius)
+							else	
+								lg.rectangle("line", v.x - 1, v.y - 1, v.w + 2, v.h + 2)
+							end
+						end
+						if i.parent and items[i.parent] and items[i.parent].use255 then
+							lg.setColor(love.math.colorFromBytes(i.color))
+						else
+							lg.setColor(i.color)
+						end
+						if i.round then
+							lg.rectangle("fill", v.x, v.y, v.w, v.h, i.roundRadius, i.roundRadius)
+						else
+							lg.rectangle("fill", v.x, v.y, v.w, v.h)
+						end
+						
+						if v.selected then
+							lg.setColor(i.overlayColor)
+							if i.round then
+								lg.rectangle("fill", v.x, v.y, v.w, v.h, i.roundRadius, i.roundRadius)
+							else
+								lg.rectangle("fill", v.x, v.y, v.w, v.h)
+							end
+							lg.setColor(i.color)
+						end
+						lg.setColor(i.optionsColor)
+						if i.border then
+							lg.printf(v.text, v.x + 1, (i.paddingTop / 2) + v.y + (i.paddingBottom / 2) - 2, v.w, "center")
+						else
+							lg.printf(v.text, v.x, (i.paddingTop / 2) + v.y + (i.paddingBottom / 2), v.w, "center")
+						end
+						lg.pop()
+					end
+				end
+				lg.setColor(i.labelColor)
+				lg.setFont(i.labelFont)
+				if i.shadowLabel then
+					lg.setColor(0,0,0,.2)
+					lg.print(i.label, i.labelPosition.x + 1, i.labelPosition.y + 1)
+					lg.setColor(i.labelColor)
+				end
+				lg.print(i.label, i.labelPosition.x, i.labelPosition.y)
+			end
+			if i.type == "dropdown" then
+				lg.setColor(i.color)
+				lg.setFont(i.font)
+
+				lg.rectangle("fill", i.pos.x, i.pos.y, i.uW, i.uH)
+				if i.open then
+					lg.setColor(0,0,0,.2)
+					lg.rectangle("fill", i.pos.x, i.pos.y, i.uW, i.uH)
+					lg.setColor(i.color)
+				end
+				if i.border then
+					lg.setColor(i.borderColor)
+					lg.rectangle("line", i.pos.x - 1, i.pos.y - 1, i.uW + 2, i.uH + 2)
+				end
+				lg.setColor(i.optionsColor)
+				lg.setFont(i.optionFont)
+				if i.selected ~= 0 then lg.print(i.options[i.selected].text, i.pos.x + i.paddingLeft, i.pos.y + i.paddingTop) end
+				if i.open then
+					if i.border then
+						if i.fixPadding then
+							lg.setColor(i.borderColor)
+							lg.rectangle("line", i.pos.x, i.pos.y + i.uH + 2, i.optionPaddingLeft + i.dW + i.optionPaddingRight + 2, i.dH + 2)
+							lg.setColor(i.color)
+							lg.rectangle("fill", i.pos.x + 1, i.pos.y + i.uH + 3, i.optionPaddingLeft + i.dW + i.optionPaddingRight, i.dH)
+						else
+							lg.setColor(i.borderColor)
+							lg.rectangle("line", i.pos.x, i.pos.y + i.uH + 2, i.optionPaddingLeft + i.dW + i.optionPaddingRight + 2, i.optionPaddingTop + i.dH + i.paddingBottom + 2)
+							lg.setColor(i.color)
+							lg.rectangle("fill", i.pos.x + 1, i.pos.y + i.uH + 3, i.optionPaddingLeft + i.dW + i.optionPaddingRight, i.optionPaddingTop + i.dH + i.paddingBottom)
+						end
+					else
+						lg.setColor(i.color)
+						if i.fixPadding then
+							lg.rectangle("fill", i.pos.x, i.pos.y + i.uH, i.optionPaddingLeft + i.dW + i.optionPaddingRight, i.dH)
+						else
+							lg.rectangle("fill", i.pos.x, i.pos.y + i.uH, i.optionPaddingLeft + i.dW + i.optionPaddingRight, i.optionPaddingTop + i.dH + i.paddingBottom)
+						end
+					end
+					for k,v in ipairs(i.options) do
+						if v.hovered then
+							lg.setColor(0,0,0,.2)
+							if i.border then
+								lg.rectangle("fill",v.x - (i.optionPaddingLeft / 2) + 1,v.y - i.optionPaddingTop - i.optionPaddingBottom,v.w + i.optionPaddingLeft + i.optionPaddingRight,v.h)
+							else
+								lg.rectangle("fill",v.x - i.optionPaddingLeft / 2,v.y,v.w + i.optionPaddingLeft + i.optionPaddingRight,v.h)
+							end
+						end
+						lg.setColor(i.optionsColor)
+						lg.setFont(i.optionFont)
+						lg.print(v.text, v.x, v.y + i.optionPaddingTop)
+						if k ~= #i.options then
+							lg.setColor(0,0,0,.2)
+							lg.line(v.x - i.optionPaddingLeft / 2, v.y + ((v.h - i.optionPaddingTop) - i.optionPaddingBottom), v.x + v.w + i.optionPaddingLeft, v.y + ((v.h - i.optionPaddingTop) - i.optionPaddingBottom))
+						end
+					end
+				end
+
+				lg.setColor(i.labelColor)
+				lg.setFont(i.labelFont)
+				lg.print(i.label, i.labelPosition.x, i.labelPosition.y)
+			end
+			if i.type == "text" then
+				lg.setColor(1,1,1,1)
+				lg.setFont(i.font)
+				if i.typewriter then
+					if i.fancy then
+						for k,v in ipairs(i.typewriterText) do
+							if v.text then
+								lg.push()
+								lg.setColor(i.color)
+								if v.color ~= "white" then
+									if i.parent then
+										lg.setColor(self.color(v.color))
+									else
+										if type(v.color) == "string" then
+											lg.setColor(colors[v.color])
+										else
+											lg.setColor(v.color)
+										end
+									end
+								end
+								if v.font ~= "default" then
+									lg.setFont(i.fonts[v.font])
+								end
+								if v.offset[1] then
+									if i.shadow then
+										lg.print({{0,0,0,.4}, v.toShow}, v.x + v.offset[1] + 1, v.y + v.offset[2] + 1)
+									end
+									lg.print(v.toShow, v.x + v.offset[1], v.y + v.offset[2])
+								else
+									if i.shadow then
+										lg.print({{0,0,0,.4}, v.toShow}, v.x + 1, v.y + 1)
+									end
+									lg.print(v.toShow, v.x, v.y)
+								end
+								lg.setColor(1,1,1,1)
+								lg.pop()
+								if not v.finished then break end
+							end
+						end
+					else
+						if i.shadow then
+							lg.print({{0,0,0,.4}, i.typewriterPrint}, i.pos.x + 1, i.pos.y + 1)
+						end
+						lg.print({i.color, i.typewriterPrint}, i.pos.x, i.pos.y)
+					end
+				else
+					if i.w ~= 0 then
+						if i.shadow then
+							lg.printf({{0,0,0,.4}, i.text}, i.pos.x + 1, i.pos.y + 1, i.w, i.align)
+						end
+						lg.printf({i.color, i.text}, i.pos.x, i.pos.y, i.w, i.align)
+					else
+						if i.shadow then
+							lg.print({{0,0,0,.4}, i.text}, i.pos.x + 1, i.pos.y + 1)
+						end
+						lg.print({i.color, i.text}, i.pos.x, i.pos.y)
+					end
+				end
+				lg.setColor(1,1,1,1)
+			end
+			if i.type == "textfield" then
+				lg.setFont(i.font)
+				lg.setColor(i.color)
+				lg.rectangle("fill", i.pos.x, i.pos.y, i.w, i.h)
+				if i.border then
+					lg.setColor(i.borderColor)
+					lg.rectangle("fill", i.pos.x - 1, i.pos.y - 1, i.w + 2, i.h + 2)
+				end
+				lg.setColor(i.textColor)
+				for k,v in ipairs(i.display) do
+					if k == 1 then
+						lg.print(v, i.pos.x + 5 + i.paddingLeft, i.pos.y + 5 + i.paddingTop)
+					else
+						lg.print(v, i.pos.x + 5 + i.paddingLeft, i.pos.y + (5 + (i.font:getHeight() * (k - 1))))
+					end
+				end
+				if i.active and i.showCursor then
+					lg.setColor(.05,.05,.05,1)
+					if i.cursorOffset == #i.display[i.currentLine] then
+						lg.line(i.pos.x + i.font:getWidth(i.display[i.currentLine]) + 7,i.pos.y + (i.font:getHeight() * (i.currentLine - 1)) + 5, i.pos.x + i.font:getWidth(i.display[i.currentLine]) + 7, i.pos.y + (i.font:getHeight() * i.currentLine) + 5)
+					else
+						if i.maxed then
+							lg.line(i.pos.x + (i.font:getWidth(i.display[i.currentLine - 1]) + 5) - i.font:getWidth(string.sub(i.display[i.currentLine - 1], 1, #i.display[i.currentLine - 1] - i.cursorOffset)),
+									i.pos.y + (i.font:getHeight() * (i.currentLine - 2)) + 5,
+									i.pos.x + (i.font:getWidth(i.display[i.currentLine - 1]) + 5) - i.font:getWidth(string.sub(i.display[i.currentLine - 1], 1, #i.display[i.currentLine - 1] - i.cursorOffset)),
+									i.pos.y + (i.font:getHeight() * i.currentLine - 3) + 5)				
+						else
+							lg.line(i.pos.x + (i.font:getWidth(i.display[i.currentLine]) + 5) - i.font:getWidth(string.sub(i.display[i.currentLine], 1, #i.display[i.currentLine] - i.cursorOffset)),
+									i.pos.y + (i.font:getHeight() * (i.currentLine - 1)) + 5,
+									i.pos.x + (i.font:getWidth(i.display[i.currentLine]) + 5) - i.font:getWidth(string.sub(i.display[i.currentLine], 1, #i.display[i.currentLine] - i.cursorOffset)),
+									i.pos.y + (i.font:getHeight() * i.currentLine) + 5)
+						end
+					end
+				end
+				lg.setColor(1,1,1,1)
+			end
+			if i.draw then i:draw() end
+		end
+		lg.pop("all")
 	end
 end
 
@@ -700,7 +1119,7 @@ function gui:registerGlobalEvent(n, o, f, t, i)
 	if not self.enabled then return false end
 	assert(n, "FAILURE: gui:registerEvent() :: Missing param[eventName]")
 	assert(type(n) == "string", "FAILURE: gui:registerEvent() :: Incorrect param[eventName] - expecting string and got " .. type(n))
-	assert(o, "FAILURE: gui:registerEvent() :: Missing param[type]")
+	assert(o, "FAILURE: gui:registerEvent() :: Missing param[eventType]")
 	assert(type(o) == "string", "FAILURE: gui:registerEvent() :: Incorrect param[type] - expecting string and got " .. type(o))
 	assert(f, "FAILURE: gui:registerEvent() :: Missing param[name]")
 	assert(type(f) == "function", "FAILURE: gui:registerEvent() :: Incorrect param[name] - expecting function and got " .. type(f))
@@ -733,6 +1152,119 @@ function gui:keypressed(key, scan, isRepeat)
 		if v.enabled then
 			for _,i in ipairs(v.items) do
 				if i.keypressed then i:keypressed(event) end
+				if i.type == "box" then
+				
+				end
+				if i.type == "checkbox" then
+				
+				end
+				if i.type == "dropdown" then
+				
+				end
+				if i.type == "text" then
+				
+				end
+				if i.type == "textfield" then
+					if not i.useable then return false end
+					if keyIsDown then return false end
+					keyIsDown = true
+					if i.active then
+						local allowKey = false
+						for _,v in ipairs(i.keys) do
+							if v == event.key then allowKey = true end
+						end
+						if allowKey then
+							if event.key == "backspace" then
+								if i.currentLine == 1 then
+									if i.display[i.currentLine] ~= "" then
+										i.display[i.currentLine] = i.display[i.currentLine]:sub(1,-2)
+										i.cursorOffset = i.cursorOffset - 1
+									end
+								else
+									i.display[i.currentLine] = i.display[i.currentLine]:sub(1,-2)
+									if i.display[i.currentLine] == "" or i.cursorOffset == 0 then
+										i.currentLine = i.currentLine - 1
+										i.cursorOffset = #i.display[i.currentLine]
+									else
+										i.cursorOffset = i.cursorOffset - 1
+									end
+								end
+							elseif event.key == "return" or event.key == "enter" then
+								i.currentLine = i.currentLine + 1
+								if not i.display[i.currentLine] then i.display[i.currentLine] = "" end
+							elseif event.key == "up" then
+								if i.currentLine ~= 1 then
+									i.currentLine = i.currentLine - 1
+								end
+							elseif event.key == "down" then
+								if i.display[i.currentLine + 1] then 
+									i.currentLine = i.currentLine + 1
+								end
+							elseif event.key == "left" then
+								if i.cursorOffset >= 1 then
+									i.cursorOffset = i.cursorOffset - 1
+								else
+									if i.currentLine ~= 1 then
+										i.currentLine = i.currentLine - 1
+										i.cursorOffset = #i.display[i.currentLine]
+									end
+								end
+							elseif event.key == "right" then
+								if i.cursorOffset < #i.display[i.currentLine] then
+									i.cursorOffset = i.cursorOffset + 1
+								else
+									if i.display[i.currentLine + 1] then
+										i.currentLine = i.currentLine + 1
+										i.cursorOffset = 0
+									end
+								end
+							else
+								if i.maxed then return false end
+								if event.key == "space" then event.key = " " end
+								local foundHome = false
+								local line = i.currentLine
+								local tooWide = i.font:getWidth(i.display[line] .. event.key) > (i.w - (i.paddingLeft + 7)) - (i.paddingRight + 7)
+								
+								if tooWide then
+									i.display[line] = string.sub(i.display[line], 1, i.cursorOffset) .. event.key .. string.sub(i.display[line], i.cursorOffset + 1, #i.display[line])
+									while not foundHome do
+										local pop = string.sub(i.display[line], #i.display[line], #i.display[line])
+										if i.font:getWidth(i.display[line]) >= (i.w - (i.paddingLeft + 7)) - (i.paddingRight + 7) then
+											if not i.display[line] then i.display[line] = "" end
+											for k,v in ipairs(i.display) do 
+												while i.font:getWidth(i.display[k]) >= (i.w - (i.paddingLeft + 7)) - (i.paddingRight + 7) do
+													if not i.display[k + 1] then i.display[k + 1] = "" end
+													i.display[k + 1] = pop .. i.display[k + 1]
+													i.display[k] = string.sub(i.display[k], 1, #i.display[k] - 1)
+												end
+											end
+										else
+											foundHome = true
+										end
+									end
+									if i.cursorOffset == #i.display[i.currentLine] then
+										i.currentLine = i.currentLine + 1
+										if i.maxLines < i.currentLine then
+											i.maxed = true
+											i.display[i.currentLine] = string.sub(i.display[i.currentLine], 0, #i.display[i.currentLine] - 1)
+										else
+											i.cursorOffset = 1
+										end
+									else
+										if i.maxLines < #i.display then
+											i.maxed = true
+											i.display[#i.display] = string.sub(i.display[#i.display], 0, #i.display[#i.display] - 1)
+										end
+									end
+								else
+									i.cursorOffset = i.cursorOffset + 1
+									i.display[line] = string.sub(i.display[line], 1, i.cursorOffset) .. event.key .. string.sub(i.display[line], i.cursorOffset + 1, #i.display[line])
+								end
+							end
+						end
+					end
+					keyIsDown = false
+				end
 			end
 		end
 	end
@@ -783,9 +1315,7 @@ end
 function gui:mousepressed(x, y, button, istouch, presses)
 	if not self.enabled then return false end
 	local event = {x=x, y=y, button=button, istouch=istouch, presses=presses}
-	local objs = self:copy(items, "handles")
-	
-	table.sort(objs, function(a,b) 
+	table.sort(items, function(a,b) 
 		if not a or not b then return false end
 		if a.z == b.z then
 			if a.id == b.id then
@@ -798,14 +1328,21 @@ function gui:mousepressed(x, y, button, istouch, presses)
 		end
 	end)
 	local hitTarget = false
-	for _,o in ipairs(objs) do
+	for _,o in ipairs(items) do
 		if o.enabled then
-			local obj = self:copy(o, "handles")
-			table.sort(obj.items, function(a,b) 
+			table.sort(o.items, function(a,b) 
 				if not a or not b then return false end
 				if a.pos.z == b.pos.z then
 					if a.id == b.id then
-						return false
+						if a.pos.x == b.pos.x then
+							if a.pos.y == b.pos.y then
+								return false
+							else
+								return a.pos.y < b.pos.y
+							end
+						else
+							return a.pos.x > b.pos.x
+						end
 					else
 						return a.id < b.id
 					end
@@ -813,7 +1350,7 @@ function gui:mousepressed(x, y, button, istouch, presses)
 					return a.pos.z > b.pos.z
 				end
 			end)
-			for k,v in ipairs(obj.items) do
+			for k,v in ipairs(o.items) do
 				local i = self:child(v.name)
 				if i then
 					if not hitTarget and i.hovered and i.clickable and not i.hidden and not i.faded then
@@ -823,6 +1360,75 @@ function gui:mousepressed(x, y, button, istouch, presses)
 							self.held[heldID] = {id = heldID, obj = i}
 						end
 						if i.mousepressed then i:mousepressed(event) end
+						
+						if i.type == "box" then
+						
+						end
+						if i.type == "checkbox" then
+							if button == 1 then
+								local oneIsSelected = false
+								for k,v in ipairs(i.options) do
+									if x >= v.x and x <= v.x + v.w and y >= v.y and y <= v.y + v.h then
+										if i.single then
+											for _,o in ipairs(i.options) do
+												o.selected = false
+											end
+										end
+										v.selected = not v.selected
+										if i.forceOption then
+											local haveSelected = false
+											for _,o in ipairs(i.options) do
+												if o.selected then 
+													haveSelected = true 
+												end
+											end
+											if not haveSelected then
+												v.selected = true
+											end
+										end
+										if i.events.onOptionClick then 
+											for _,e in ipairs(i.events.onOptionClick) do
+												e.fn(i, i.options[k], e.t, {x=x, y=y, button=button, istouch=istouch, presses=presses})
+											end
+										end
+									end
+								end
+							end
+						end
+						if i.type == "dropdown" then
+							if button == 1 then
+								if i.open then
+									local hitTarget = false
+									for k,v in ipairs(i.options) do
+										if v.hovered then
+											i.selected = k
+											hitTarget = true
+											if i.events.onOptionClick then 
+												for _,e in ipairs(i.events.onOptionClick) do
+													e.fn(i, i.options[k], e.t, event)
+												end
+											end
+										end
+									end
+									if not hitTarget then
+										i.open = false
+									end
+								else
+									i.open = true
+								end
+							end
+						end
+						if i.type == "text" then
+						
+						end
+						if i.type == "textfield" then
+							if button == 1 then
+								if not i.active then
+									i.active = true
+								end
+							end
+						end
+						
 						if button == 1 then
 							if i.events.onClick then 
 								for j,e in ipairs(i.events.onClick) do
@@ -864,10 +1470,40 @@ function gui:mousepressed(x, y, button, istouch, presses)
 					end
 				end
 			end
-			obj = nil
+			table.sort(o.items, function(a,b) 
+				if not a or not b then return false end
+				if a.pos.z == b.pos.z then
+					if a.id == b.id then
+						if a.pos.x == b.pos.x then
+							if a.pos.y == b.pos.y then
+								return false
+							else
+								return a.pos.y > b.pos.y
+							end
+						else
+							return a.pos.x < b.pos.x
+						end
+					else
+						return a.id > b.id
+					end
+				else
+					return a.pos.z < b.pos.z
+				end
+			end)
 		end
 	end
-	objs = nil
+	table.sort(items, function(a,b) 
+		if not a or not b then return false end
+		if a.z == b.z then
+			if a.id == b.id then
+				return false
+			else
+				return a.id < b.id
+			end
+		else
+			return a.z > b.z
+		end
+	end)
 end
 
 function gui:mousereleased(x, y, button, istouch, presses)
@@ -904,9 +1540,7 @@ end
 function gui:touchpressed(id, x, y, dx, dy, pressure)
 	if not self.enabled then return false end
 	local event = {id=id, x=x, y=y, dx=dx, dy=dy, pressure=pressure}
-	local objs = self:copy(items, "handles")
-	
-	table.sort(objs, function(a,b) 
+	table.sort(items, function(a,b) 
 		if not a or not b then return false end
 		if a.z == b.z then
 			if a.id == b.id then
@@ -921,8 +1555,7 @@ function gui:touchpressed(id, x, y, dx, dy, pressure)
 	local hitTarget = false
 	for _,o in ipairs(objs) do
 		if o.enabled then
-			local obj = self:copy(o, "handles")
-			table.sort(obj.items, function(a,b) 
+			table.sort(o.items, function(a,b) 
 				if not a or not b then return false end
 				if a.pos.z == b.pos.z then
 					if a.id == b.id then
@@ -998,10 +1631,32 @@ function gui:touchpressed(id, x, y, dx, dy, pressure)
 					end
 				end
 			end
-			obj = nil
+			table.sort(o.items, function(a,b) 
+				if not a or not b then return false end
+				if a.pos.z == b.pos.z then
+					if a.id == b.id then
+						return false
+					else
+						return a.id > b.id
+					end
+				else
+					return a.pos.z < b.pos.z
+				end
+			end)
 		end
 	end
-	objs = nil
+	table.sort(items, function(a,b) 
+		if not a or not b then return false end
+		if a.z == b.z then
+			if a.id == b.id then
+				return false
+			else
+				return a.id > b.id
+			end
+		else
+			return a.z < b.z
+		end
+	end)
 end
 
 function gui:hardRemove(n)
@@ -1024,6 +1679,7 @@ function gui:hardRemove(n)
 			end
 		end
 	end
+	self.needToSort = true
 	return self
 end
 
@@ -1044,6 +1700,7 @@ function gui:remove(n)
 	else
 		self.items[n] = nil
 	end
+	self.needToSort = true
 	return self
 end
 
@@ -1052,6 +1709,7 @@ function gui:setZ(z)
 	assert(z, "FAILURE: gui:setZ() :: Missing param[z]")
 	assert(type(z) == "number", "FAILURE: gui:setZ() :: Incorrect param[z] - expecting number and got " .. type(z))
 	self.z = z
+	self.needToSort = true
 	return self
 end
 
