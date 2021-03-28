@@ -8,6 +8,7 @@ Game.font = love.filesystem.newFileData("/res/thicktext.otf")
 Game.balloonFont = love.filesystem.newFileData("/res/balloon.ttf")
 Game.fonts = {
 	small = lg.newFont(Game.font, 18),
+	info = lg.newFont(Game.font, 20),
 	medium = lg.newFont(Game.font, 24),
 	large = lg.newFont(Game.font, 36),
 	help = lg.newFont(Game.font, 40),
