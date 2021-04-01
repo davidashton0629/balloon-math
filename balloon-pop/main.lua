@@ -2,11 +2,13 @@ local Neon = require("neon")
 local lg = love.graphics
 local floor, min, max, random, rad = math.floor, math.min, math.max, love.math.random, math.rad
 
-Game = {}
+local Game = {}
 Game.GUI = require("neon")
+Game.GUI:addColor({1,0.8,0,1}, "golden")
 Game.font = love.filesystem.newFileData("/res/thicktext.otf")
 Game.balloonFont = love.filesystem.newFileData("/res/balloon.ttf")
 Game.fonts = {
+	tooltip = lg.newFont(Game.font, 16),
 	small = lg.newFont(Game.font, 18),
 	info = lg.newFont(Game.font, 20),
 	medium = lg.newFont(Game.font, 24),
@@ -15,17 +17,19 @@ Game.fonts = {
 	huge = lg.newFont(Game.font, 48),
 	balloon = lg.newFont(Game.balloonFont, 40)
 }
+Game.fonts.tooltip:setLineHeight(0.75)
 Game.backgroundBalloons = 1
 Game.timePassed = 5
 Game.runTime = 0
 Game.timeLeft = 0
-Game.length = 300
+Game.length = 120
 Game.balloonCount = 1
 Game.timeScale = 0
 Game.bgTimePassed = 0
 Game.paused = false
 Game.problemResult = nil
 Game.score = 0
+Game.needToSort = false
 Game.right = love.sound.newSoundData("/res/right.mp3")
 Game.wrong = love.sound.newSoundData("/res/wrong.mp3")
 Game.balloonPop = love.audio.newSource("/res/pop.mp3", "static")
@@ -49,6 +53,7 @@ Game.balloons = {
 	lg.newImage("/res/pink.png"),
 	lg.newImage("/res/purple.png"),
 }
+Game.shadowBalloon = lg.newImage("/res/shadow.png")
 Game.balloonsPopped = {
 	lg.newImage("/res/redpop.png"),
 	lg.newImage("/res/bluepop.png"),
@@ -60,23 +65,23 @@ Game.balloonsPopped = {
 Game.balloonObjects = {}
 --
 Game.credits = Game.GUI:new()
-Game.credits:add("text", "credits"):setData({ x = 10, y = 570, z = 4, w = 790, color = {1,1,1,1}, shadow = true, text = "Background music made by https://www.bensound.com | Balloon images made by Immow", font = Game.fonts.small, clickable = false}):animateToPosition(10, 560, 4)
+Game.credits:add("text", "credits"):setData({x = 70, y = 570, z = 4, color = {1,1,1,1}, shadow = true, text = "Background music made by https://www.bensound.com | Balloon images made by{c=golden}Koen Schippers{/}", font = Game.fonts.small, clickable = false}):animateToPosition(75, 560, 4)
 Game.credits:child("credits"):registerEvent("onAnimationComplete", function(self) 
 	if self:getY() == 560 then 
-		self:animateToPosition(10, 570, 4) 
+		self:animateToPosition(75, 570, 4) 
 	else 
-		self:animateToPosition(10, 560, 4) 
+		self:animateToPosition(75, 560, 4) 
 	end 
 end)
 
-Game.background = require("hud.background")
-Game.mainMenu = require("hud.mainMenu")
-Game.helpMenu = require("hud.helpMenu")
-Game.settingsMenu = require("hud.settingsMenu")
-Game.pauseMenu = require("hud.pauseMenu")
-Game.inGame = require("hud.inGame")
-Game.gameOver = require("hud.gameOver")
-local Balloon = require("balloon")
+local Balloon = require("balloon")(Game)
+Game.background = require("hud.background")(Game)
+Game.mainMenu = require("hud.mainMenu")(Game)
+Game.helpMenu = require("hud.helpMenu")(Game)
+Game.settingsMenu = require("hud.settingsMenu")(Game)
+Game.pauseMenu = require("hud.pauseMenu")(Game)
+Game.inGame = require("hud.inGame")(Game)
+Game.gameOver = require("hud.gameOver")(Game)
 --
 
 function love.load()
@@ -91,6 +96,7 @@ function Game:setProblem()
 	local roll = random(0,100)
 	if Game.difficulty == 1 then
 		self.problemResult = n1 + n2
+		self.inGame:child("problem"):setText(n1 .. " + " .. n2)
 	elseif Game.difficulty == 2 then
 		if roll > 50 then
 			self.problemResult = n1 + n2
@@ -101,6 +107,9 @@ function Game:setProblem()
 		end
 	elseif Game.difficulty == 3 then
 		if roll > 50 then
+			repeat
+				n2 = random(1, (10 * Game.difficulty) - n1)
+			until n1 % n2 == 0
 			self.problemResult = floor((max(n1,n2) / min(n1,n2)) * 10) / 10
 			self.inGame:child("problem"):setText(max(n1,n2) .. " / " ..min(n1,n2))
 		else
@@ -113,6 +122,9 @@ function Game:setProblem()
 				self.problemResult = n1 * n2
 				self.inGame:child("problem"):setText(n1 .. " * " .. n2)
 			else
+				repeat
+					n2 = random(1, (10 * Game.difficulty) - n1)
+				until n1 % n2 == 0
 				self.problemResult = floor((max(n1,n2) / min(n1,n2)) * 10) / 10
 				self.inGame:child("problem"):setText(max(n1,n2) .. " / " ..min(n1,n2))
 			end
@@ -132,6 +144,29 @@ function Game:animateBG()
 		i = random(1, #self.backgrounds)
 	until self.background:child("background"):getImage() ~= self.backgrounds[i]
 	self.background:child("background"):animateToImage(self.backgrounds[i], 5)
+end
+
+function Game:sortDraw()
+	table.sort(self.balloonObjects, function(a,b) 
+		if not a or not b then return false end
+		if a.z == b.z then
+			if a.id == b.id then
+				if a.x == b.x then
+					if a.y == b.y then
+						return false
+					else
+						return a.y > b.y
+					end
+				else
+					return a.x < b.x
+				end
+			else
+				return a.id > b.id
+			end
+		else
+			return a.z < b.z
+		end
+	end)
 end
 
 function love.update(dt)
@@ -169,14 +204,16 @@ function love.update(dt)
 			repeat
 				Game.balloonCount = Game.balloonCount + 1
 			until (not Game.balloonObjects[Game.balloonCount]) or (Game.balloonObjects[Game.balloonCount] and not Game.balloonObjects[Game.balloonCount].animating)
-			Game.balloonObjects[Game.balloonCount] = Balloon:new(Game)
+			Game.balloonObjects[Game.balloonCount] = Balloon:new()
 			Game.timePassed = 0
+			Game.needToSort = true
 		end
 		Game.runTime = Game.runTime + dt
 		Game.timeScale = (Game.runTime + 40) / Game.length
 		Game.timeLeft = Game.timeLeft - dt
 		if Game.runTime > Game.length then
 			Game.inGame:disable()
+			Game.balloonObjects = {}
 			Game.gameOver:enable()
 			Game.gameOver:child("endscore"):setText("Final Score: " .. Game.score)
 		else
@@ -215,6 +252,7 @@ function love.keypressed(key,scan,isrepeat)
 					Game.background:child(v.name):enable()
 				end
 			end
+			Game.credits:enable()
 		end
 	end
 end
@@ -237,26 +275,10 @@ function love.draw()
 	if Game.inGame.enabled then
 		lg.setColor(1,1,1,1)
 		lg.draw(Game.inGameBG, 0, 0)
-		table.sort(Game.balloonObjects, function(a,b) 
-			if not a or not b then return false end
-			if a.z == b.z then
-				if a.id == b.id then
-					if a.x == b.x then
-						if a.y == b.y then
-							return false
-						else
-							return a.y > b.y
-						end
-					else
-						return a.x < b.x
-					end
-				else
-					return a.id > b.id
-				end
-			else
-				return a.z < b.z
-			end
-		end)
+		if Game.needToSort then
+			Game:sortDraw()
+			Game.needToSort = false
+		end
 		for _,v in ipairs(Game.balloonObjects) do
 			v:draw()
 		end
@@ -289,30 +311,13 @@ function love.mousepressed(x, y, button, istouch, presses)
 			return a.z > b.z
 		end
 	end)
-	for _,v in ipairs(Game.balloonObjects) do
-		if v.hovered and not v.shake then
-			v:mousepressed(x, y, button, istouch, presses)
-			break
+	if Game.inGame.enabled and not Game.paused then
+		for _,v in ipairs(Game.balloonObjects) do
+			if v.hovered and not v.shake then
+				v:mousepressed(x, y, button, istouch, presses)
+				break
+			end
 		end
 	end
-	table.sort(Game.balloonObjects, function(a,b) 
-		if not a or not b then return false end
-		if a.z == b.z then
-			if a.id == b.id then
-				if a.x == b.x then
-					if a.y == b.y then
-						return false
-					else
-						return a.y > b.y
-					end
-				else
-					return a.x < b.x
-				end
-			else
-				return a.id > b.id
-			end
-		else
-			return a.z < b.z
-		end
-	end)
+	Game:sortDraw()
 end
